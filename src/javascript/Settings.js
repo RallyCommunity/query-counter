@@ -1,9 +1,21 @@
 Ext.define('Rally.technicalservices.querycounter.Settings', {
+
     singleton: true,
 
     getFields: function(config) {
 
         var items = [];
+
+        items.push({
+          id:'searchAllProjects',
+          name:'searchAllProjects',
+          fieldLabel: 'Scope Across Workspace',
+          labelAlign: 'left',
+          xtype:'rallycheckboxfield',
+          labelWidth: 150,
+          margin: 10,
+          hidden: !config.showSearchAllProjects
+        });
 
         items.push({
           name:'countVariables',
@@ -26,7 +38,6 @@ Ext.define('Rally.technicalservices.querycounter.Settings', {
             xtype:'rallyrichtexteditor',
             margin: '10 70 0 60',
             fieldLabel: 'Informational Text',
-            //height: 200,
             _createResizer: function(){}, //This is an override so that the resizer handle which is hardcoded in the component doesn't hide the last line of the editor.
             resizeable: false
         });
