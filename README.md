@@ -4,6 +4,10 @@ This is a simple app that lets you set up one or more query with some explanator
 text so that it can display a simple count of the items that match the
 query(s).
 
+If this app is on a Timebox Scoped page, then the appropriate timebox filter
+will be applied if the Timebox is valid for the queried model.  If the Timebox
+is not valid for the selected model, then the Timebox scope will be ignored.  
+
 ![example](images/query-counter.png "Example Display")
 
 To display the count for one or more queries, use the App Settings...
@@ -13,6 +17,11 @@ For each query that you would like to display a count for, define the following:
 2.  Artifact Type (the type of artifact to be counted)
 3.  Query
 
+![example](images/query-counter-settings.png "Example Configuration")
+
+To not use queries, remove all queries using the - symbol.  To add a query back,
+use the + symbol.  
+
 In the rich text field, enter the text that you would like to display in the app.  
 To show the counts for the different queries, use the notation "{myVar}" where
 "myVar" represents the "Count Variable Name" from above.  
@@ -21,16 +30,14 @@ The app will replace any defined variables with the count.
 If there is an error with the query, then the app will display the error in red in
 place of the variable.
 
-![example](images/query-counter-settings.png "Example Configuration")
+### Pro Tip
+You can use math and other fancy expressions in your template strings!  This app uses an [Ext.XTemplate](https://docs.ca.com/ca-agile-central/saas/apps/2.1/doc/#!/api/Ext.XTemplate) to render the query variables, so any expression supported by the template class should work.
+Example:
+```
+Accepted Stories: {[ (acceptedCount / totalCount) * 100 ]} %
+```
 
-If this app is on a Timebox Scoped page, then the appropriate timebox filter
-will be applied if the Timebox is valid for the queried model.  If the Timebox
-is not valid for the selected model, then the Timebox scope will be ignored.  
-
-To not use queries, remove all queries using the - symbol.  To add a query back,
-use the + symbol.  
-
-## Development Notes
+### Development Notes
 
 * Using the Rally rich text editor to get easy formatting, but it doesn't give
 us a lot of options for size of the font.
