@@ -34,7 +34,7 @@ place of the variable.
 You can use math and other fancy expressions in your template strings!  This app uses an [Ext.XTemplate](https://docs.ca.com/ca-agile-central/saas/apps/2.1/doc/#!/api/Ext.XTemplate) to render the query variables, so any expression supported by the template class should work.
 Example:
 ```
-Accepted Stories: {[ (acceptedCount / totalCount) * 100 ]} %
+Accepted Stories: {[ (values.acceptedCount / values.totalCount * 100).toFixed(2) ]} %
 ```
 
 ### Development Notes
