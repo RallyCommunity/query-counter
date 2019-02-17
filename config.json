@@ -3,5 +3,18 @@
     "className": "TSQueryCounter",
     "server": "https://rally1.rallydev.com",
     "sdk": "2.1",
-    "story": "N/A"
+    "story": "N/A",
+    "javascript": [
+        "src/javascript/utils/__ts-info-link.js",
+        "src/javascript/utils/__ts-logger.js",
+        "src/javascript/utils/count-variable-settings-row.js",
+        "src/javascript/utils/count-variable-settings.js",
+        "src/javascript/_ts-record-type-picker.js",
+        "src/javascript/RichTextEditorSettingsField.js",
+        "src/javascript/Settings.js",
+        "src/javascript/app.js"
+    ],
+    "css": [
+        "src/style/app.css"
+    ]
 }

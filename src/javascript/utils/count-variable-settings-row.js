@@ -88,11 +88,11 @@ Ext.define('CountVariableSettingsRow', {
       },
       validate: function(){
          if (!this.idField.getValue()){ return "Please provide a value for the Variable Name.";}
-         if (!this.artifactTypeField.getValue()){ return "Please provide a value for the Artifact Type."}
-         if (!this.queryField.getValue()){ return "Please provide a query."}
+         if (!this.artifactTypeField.getValue()){ return "Please provide a value for the Artifact Type.";}
+         if (!this.queryField.getValue()){ return "Please provide a query.";}
 
          var queryValid = this.queryField.validate();
-         if (!queryValid){ return "Invalid Query."};
+         if (!queryValid){ return "Invalid Query.";}
 
          return null;
       },
@@ -128,7 +128,7 @@ Ext.define('CountVariableSettingsRow', {
               },
               getErrors: function(val){
                  if (!val || val.trim().length == 0){
-                   return ["Please provide a value for Variable Name"]
+                   return ["Please provide a value for Variable Name"];
                  }
                  return [];
               },
@@ -173,7 +173,6 @@ Ext.define('CountVariableSettingsRow', {
     _createQueryField: function(){
         this.queryField = Ext.widget({
           xtype: 'textarea',
-          fieldLabel: null,
           width: '100%',
 
           labelAlign: 'right',

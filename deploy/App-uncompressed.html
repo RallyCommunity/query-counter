@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TS Query Counter</title>
+
+    <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                /**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Rally.ui.dialog.Dialog',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+    title: "Build Information",
+    
+    defaults: { padding: 5, margin: 5 },
+
+    closable: true,
+     
+    draggable: true,
+
+    autoShow: true,
+   
+    width: 350,
+    
+    informationalConfig: null,
+    
+    items: [{xtype:'container', itemId:'information' }],
+    
+    initComponent: function() {
+        var id = Ext.id(this);
+        this.title =  "<span class='icon-help'> </span>" + this.title;
+        this.callParent(arguments);
+    },
+    
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/var BUILDER  = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+       
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+   
+        return chk;
+    },
+    
+    _checkChecksum: function(container) {
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    var stored_checksum = me._generateChecksum(text);
+                    if ( CHECKSUM !== stored_checksum ) {
+                        deferred.resolve(false);
+                        return;
+                    }
+                }
+                deferred.resolve(true);
+            }
+        });
+        
+        return deferred.promise;
+    },
+    
+    _addToContainer: function(container){
+        var config = Ext.apply({
+            xtype:'container',
+            height: 200,
+            overflowY: true
+        }, this.informationalConfig);
+        
+        container.add(config);
+    },
+    
+    afterRender: function() {
+        var app = Rally.getApp();
+        
+        if ( !Ext.isEmpty( this.informationalConfig ) ) {
+            var container = this.down('#information');
+            this._addToContainer(container);
+            
+        }
+        
+        if (! app.isExternal() ) {
+            this._checkChecksum(app).then({
+                scope: this,
+                success: function(result){
+                    if ( !result ) {
+                        this.addDocked({
+                            xtype:'container',
+                            cls: 'build-info',
+                            dock: 'bottom',
+                            padding: 2,
+                            html:'<span class="icon-warning"> </span>Checksums do not match'
+                        });
+                    }
+                },
+                failure: function(msg){
+                    console.log("oops:",msg);
+                }
+            });
+        } else {
+            this.addDocked({
+                xtype:'container',
+                cls: 'build-info',
+                padding: 2,
+                dock: 'bottom',
+                html:'... Running externally'
+            });
+        }
+        this.callParent(arguments);
+    },
+    
+    beforeRender: function() {
+        var me = this;
+        this.callParent(arguments);
+
+        if (this.informationHtml) {
+            this.addDocked({
+                xtype: 'component',
+                componentCls: 'intro-panel',
+                padding: 2,
+                html: this.informationHtml,
+                doc: 'top'
+            });
+        }
+        
+        this.addDocked({
+            xtype:'container',
+            cls: 'build-info',
+            padding: 2,
+            dock:'bottom',
+            html:"This app was created by the CA AC Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            var build_html = Ext.String.format("Built on: {0} <br/>Built by: {1}",
+                APP_BUILD_DATE,
+                BUILDER);
+                
+            if ( STORY ) {
+                build_html = build_html + "<br/>Source story: " + STORY;
+            }
+                
+            this.addDocked({
+                xtype:'container',
+                cls: 'build-info',
+                padding: 2,
+                dock: 'bottom',
+                html: build_html
+            });
+        }
+    }
+});
+
+                /*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+                Ext.define('CountVariableSettingsRow', {
+        alias: 'widget.countvariablesettingsrow',
+        extend: 'Ext.Container',
+
+        layout: 'hbox',
+        cls: 'advanced-filter-row',
+        config: {
+            variableName: undefined,
+            artifactType: undefined,
+            query: undefined,
+            addButtonEnabled: false,
+            removeButtonEnabled: false
+        },
+
+        constructor: function(config) {
+            this.mergeConfig(config);
+            this.callParent([this.config]);
+        },
+
+      initComponent: function() {
+          this.items = this._getItems();
+          this.callParent(arguments);
+          // this.on('boxready', function() {
+          //     //this.indexLabel.el.show();
+          //     // if (this.focusPropertyField) {
+          //     //     this.propertyField.focus();
+          //     // }
+          // }, this, {single: true});
+      },
+
+      _getItems: function() {
+
+        this._createAddRowButton();
+
+        if (!this.isEmpty){
+          this._createRemoveRowButton();
+          this._createIdField();
+          this._createArtifactTypeField();
+          this._createQueryField();
+
+          var ct = Ext.widget({
+            xtype: 'container',
+            layout: 'vbox',
+            height: 112,
+            flex: 1,
+            items: [
+              this.idField,
+              this.artifactTypeField,
+              this.queryField
+            ]
+          });
+
+          return [
+            this.addRowButton,
+            this.removeRowButton,
+            ct
+          ];
+        }
+
+        return [
+            this.addRowButton
+        ];
+
+      },
+      getVariableName: function(){ return this.idField.getValue();},
+      getArtifactType: function(){ return this.artifactTypeField.getValue();},
+      getQuery: function(){ return this.queryField.getValue();},
+      disableAddRow: function() {
+        this.addRowButton.addCls('variable-button-disabled');
+        this.addRowButton.disable();
+      },
+
+      disableRemoveRow: function() {
+        this.removeRowButton.addCls('variable-button-disabled');
+        this.removeRowButton.disable();
+      },
+      enableRemoveRow: function() {
+        this.removeRowButton.removeCls('variable-button-disabled');
+        this.removeRowButton.enable();
+      },
+      enableAddRow: function() {
+        this.addRowButton.removeCls('variable-button-disabled');
+        this.addRowButton.enable();
+      },
+
+      isValid: function() {
+          return !!this.idField.getValue() && !!this.artifactTypeField.getValue() && this.queryField.validate();
+      },
+      validate: function(){
+         if (!this.idField.getValue()){ return "Please provide a value for the Variable Name.";}
+         if (!this.artifactTypeField.getValue()){ return "Please provide a value for the Artifact Type.";}
+         if (!this.queryField.getValue()){ return "Please provide a query.";}
+
+         var queryValid = this.queryField.validate();
+         if (!queryValid){ return "Invalid Query.";}
+
+         return null;
+      },
+      getCountVariable: function(){
+          if (this.isValid()){
+              var id = this.idField.getValue(),
+                  artifactType = this.artifactTypeField.getValue(),
+                  query = this.queryField.getValue();
+
+              return {
+                 id: id,
+                 artifactType: artifactType,
+                 query: query
+              };
+          }
+      },
+
+      _createIdField: function(){
+          this.idField = Ext.widget({
+              xtype: 'rallytextfield',
+              itemId: 'idField',
+              width: '100%',
+              labelAlign:'right',
+            //  labelCls: 'variable-label',
+              fieldLabel: 'Variable Name',
+              labelSeparator: '',
+              emptyText: 'Unique Variable Name...',
+              value: this.variableName,
+              margin: '2 0 2 0',
+              validateOnBlur: true,
+              validator: function(val){
+                 return val && val.length > 0;
+              },
+              getErrors: function(val){
+                 if (!val || val.trim().length == 0){
+                   return ["Please provide a value for Variable Name"];
+                 }
+                 return [];
+              },
+              listeners: {
+                validitychange: function(cb,isValid){
+                  this.fireEvent('rowvalidate',this);
+                },
+               scope: this
+              }
+          });
+      },
+
+      _createArtifactTypeField: function(){
+        this.artifactTypeField = Ext.widget({
+            xtype: 'tsrecordtypecombobox',
+            itemId: 'artifactTypeField',
+            width: '100%',
+
+            labelAlign: 'right',
+            fieldLabel: 'Artifact Type',
+            labelSeparator: '',
+          //  labelCls: 'variable-label',
+            margin: '2 0 2 0',
+            emptyText: 'Choose Artifact Type...',
+            value: this.artifactType,
+            valueField: 'TypePath',
+            displayField: 'Name',
+            validateOnBlur: true,
+            validateOnChange: true,
+            validator: function(val){
+               return val && val.length > 0;
+            },
+            listeners: {
+                validitychange: function(cb,isValid){
+                  this.fireEvent('rowvalidate',this);
+                },
+               scope: this
+            }
+        });
+      },
+
+    _createQueryField: function(){
+        this.queryField = Ext.widget({
+          xtype: 'textarea',
+          width: '100%',
+
+          labelAlign: 'right',
+          labelSeparator: '',
+          //labelCls: 'variable-label',
+          fieldLabel: 'Query',
+          margin: '2 0 2 0',
+          flex: 1,
+          name: 'counterQuery',
+          //anchor: '100%',
+          cls: 'query-field',
+        //  margin: '0 70 0 0',
+          plugins: [
+            // {
+            //   ptype: 'rallyhelpfield',
+            //   helpId: 194
+            // },
+            'rallyfieldvalidationui'
+          ],
+          emptyText: 'Type a Rally Query like ( ObjectID > 0 )...',
+          value: this.query || "(ObjectID > 0)",
+          validateOnBlur: true,
+          validateOnChange: false,
+          validator: function(value) {
+            if (!value){ return "Query is required."; }
+            try {
+              if (value) {
+                Rally.data.wsapi.Filter.fromQueryString(value);
+              }
+              return true;
+            } catch (e) {
+              return e.message;
+            }
+          },
+          listeners: {
+              validitychange: function(){
+                this.fireEvent('rowvalidate',this);
+              },
+             scope: this
+          }
+        });
+    },
+
+    _createAddRowButton: function() {
+        var addRowCls = 'variable-button-disabled';
+        if (this.addButtonEnabled){
+           addRowCls = '';
+        }
+
+        this.addRowButton =  Ext.widget({
+            xtype: 'rallybutton',
+            itemId: 'addRowButton',
+            //userAction: 'Add filter row clicked',
+            cls: 'rly-small icon-plus filter-row-control variable-button ' + addRowCls,
+            margin: 5,
+            border: 0,
+            disabled: !this.addButtonEnabled,
+            listeners: {
+                click: this._addRow,
+                buffer: 200,
+                scope: this
+            }
+        });
+    },
+
+    _createRemoveRowButton: function() {
+        this.removeRowButton = Ext.widget({
+            xtype: 'rallybutton',
+            itemId: 'removeRowButton',
+            //userAction: 'Remove filter row clicked',
+            cls: 'rly-small icon-minus filter-row-control variable-button',
+            border: 0,
+            margin: 5,
+            disabled: false,
+            listeners: {
+                click: this._removeRow,
+                buffer: 200,
+                scope: this
+            }
+        });
+    },
+    _addRow: function() {
+        this.fireEvent('addrow', this);
+    },
+
+    _removeRow: function(autoFocus) {
+        this.fireEvent('removerow', this, {autoFocus: autoFocus !== false });
+    },
+
+});
+
+                Ext.define('CountVariableSettingsComponent',{
+  extend: 'Ext.form.field.Base',
+       alias: 'widget.countvariablesettings',
+
+      fieldSubTpl: '<div id="{id}" class="settings-grid"></div>',
+
+      layout: 'vbox',
+      cls: 'advanced-filter-panel',
+      header: false,
+      maxHeight: 350,
+    //  height: 350,
+      minHeight: 50,
+      border: false,
+      overflowY: 'auto',
+
+      config: {
+        value: undefined,
+      },
+
+      onRender: function() {
+          this.callParent(arguments);
+
+          var decodedValue = this.value;
+          if (Ext.isString(decodedValue)){
+             decodedValue = Ext.JSON.decode(decodedValue);
+          }
+          this._buildItems(decodedValue);
+
+      },
+      _buildItems: function(value) {
+
+        var items = [];
+        this.countVariableRows = [];
+        Ext.Array.each(value, function(cv, i){
+            var lastRow = i === value.length -1;
+            var rowConfig = this._getRowConfig(cv);
+            rowConfig.addButtonEnabled = lastRow;
+            rowConfig.removeButtonEnabled = true;
+            var item = Ext.widget(rowConfig);
+            items.push(item);
+            this.countVariableRows.push(item);
+        },this);
+
+        var thisHeight = this.maxHeight;
+        if (Ext.isEmpty(items)) {
+            this._emptyRow = Ext.widget(this._getEmptyRowConfig());
+            items.push(this._emptyRow);
+            thisHeight = this.minHeight;
+        }
+
+        this._countVariableContainer = Ext.widget({
+          xtype: 'container',
+          renderTo: this.inputEl,
+          maxHeight: 300,
+          // minHeight: 50,
+          height: thisHeight,
+          autoScroll: true,
+          itemId: 'countVariableContainer',
+          layout: {
+            type: 'vbox',
+            align: 'stretch'
+          },
+          cls: 'filters-container',
+          items: items
+        });
+
+        if (Ext.isEmpty(items)){
+          this._countVariableContainer.setHeight(this.minHeight);
+        }
+
+      },
+
+    _getRowConfig: function(countVariable) {
+        if (!countVariable){
+          countVariable={};
+        }
+        return {
+            xtype: 'countvariablesettingsrow',
+            variableName: countVariable.id || '',
+            artifactType: countVariable.artifactType || 'HierarchicalRequirement',
+            query: countVariable.query || '',
+            listeners: {
+                addrow: function() {
+                    this._addRow(true);
+                },
+                removerow: this._removeRow,
+                rowvalidate: this._toggleRowButtons,
+                scope: this
+            }
+        };
+    },
+    _getEmptyRowConfig: function(){
+
+        return {
+            xtype: 'countvariablesettingsrow',
+            isEmpty: true,
+            addButtonEnabled: true,
+            itemId: 'emptyRow',
+            listeners: {
+                addrow: function() {
+                    this._addRow(true);
+                },
+                scope: this
+            }
+        };
+    },
+    _addEmptyRow: function(){
+      this._emptyRow = Ext.widget(this._getEmptyRowConfig());
+      this._countVariableContainer.add(this._emptyRow);
+      this._countVariableContainer.setHeight(this.minHeight);
+    },
+    _removeEmptyRow: function(){
+      if (this._emptyRow){
+        this._countVariableContainer.remove(this._emptyRow);
+        this._emptyRow.destroy();
+        this._countVariableContainer.setHeight(this.maxHeight);
+      }
+
+    },
+    _addRow: function(focusOnAdd) {
+
+        if (Ext.isEmpty(this.countVariableRows)) {
+          this._removeEmptyRow();
+            //_.last(this.countVariableRows).disableAddRow();
+        }
+
+        var row = Ext.widget(this._getRowConfig());
+        this.countVariableRows.push(row);
+        this._countVariableContainer.add(row);
+    },
+    _removeRow: function(row, opts) {
+        var previousRowIndex = Math.max(0, _.findIndex(this.countVariableRows, row) - 1);
+        _.remove(this.countVariableRows, row);
+        this._countVariableContainer.remove(row);
+
+        if (Ext.isEmpty(this.countVariableRows)) {
+            //this._addRow(opts.autoFocus === false ? false : true);
+            this._addEmptyRow();
+        } else if (opts.autoFocus && this.countVariableRows[previousRowIndex].valueField) {
+            this.countVariableRows[previousRowIndex].queryField.focus();
+        }
+
+        var lastRow = _.last(this.countVariableRows);
+
+        if (!Ext.isEmpty(lastRow) && lastRow.isValid()) {
+            lastRow.enableAddRow();
+        }
+
+        this._toggleRowButtons(lastRow);
+    },
+
+    _toggleRowButtons: function(row) {
+        if (Ext.isEmpty(row)){
+          return;
+        }
+
+        if (row.isValid() && row === _.last(this.countVariableRows)) {
+            row.enableAddRow();
+        } else {
+            row.disableAddRow();
+        }
+
+        if (this.countVariableRows.length === 1){
+      //    row.disableRemoveRow();
+        } else {
+          row.enableRemoveRow();
+        }
+    },
+
+    /**
+     * When a form asks for the data this field represents,
+     * give it the name of this field and the ref of the selected project (or an empty string).
+     * Used when persisting the value of this field.
+     * @return {Object}
+     */
+    getSubmitData: function() {
+        var data = {};
+        data[this.name] = Ext.JSON.encode(this._getData());
+        return data;
+    },
+
+    _getData: function() {
+        var setting = [];
+        Ext.Array.each(this.countVariableRows, function(cvr){
+           setting.push(cvr.getCountVariable());
+        });
+
+        return setting;
+    },
+
+    getErrors: function() {
+        var errors = [];
+        var countVariableNames = [];
+        Ext.Array.each(this.countVariableRows, function(cvr){
+           var error = cvr.validate();
+           if (error){
+             errors.push(error);
+           }
+
+           if (Ext.Array.contains(countVariableNames, cvr.getVariableName())){
+             errors.push("Duplicate Variable Names {" + cvr.getVariableName() + "}.  Variable Names must be unique.");
+           } else {
+             countVariableNames.push(cvr.getVariableName());
+           }
+        });
+        return _.uniq(errors);
+    },
+
+    setValue: function(value) {
+        this.callParent(arguments);
+        this._value = value;
+    }
+
+});
+
+                /**
+ * A ComboBox showing a list of Rally record types.
+ *
+ *     @example
+ *     Ext.create('Ext.Container', {
+ *         items: [{
+ *             xtype: 'tsrecordtypecombobox'
+ *          }],
+ *          renderTo: Ext.getBody().dom
+ *     });
+ */
+Ext.define('Rally.technicalservices.RecordTypeComboBox', {
+
+    extend: 'Rally.ui.combobox.ComboBox',
+    alias: 'widget.tsrecordtypecombobox',
+
+    constructor: function(config) {
+        var defaultConfig = {
+            defaultSelectionPosition: 'last',
+            editable: false,
+            fieldLabel: '',
+            //labelWidth: 30,
+            context: Rally.environment.getContext(),
+            storeConfig: {
+                autoLoad: false,
+                remoteFilter: true,
+                model: Ext.identityFn('TypeDefinition'),
+                sorters: {
+                    property: 'Name',
+                    direction: 'Asc'
+                },
+                filters: [
+                    {
+                        property: 'Creatable',
+                        operator: '=',
+                        value: 'true'
+                    }
+                ]
+            }
+        };
+
+        if (config.storeConfig) {
+            delete config.storeConfig.autoLoad;
+
+            if (config.storeConfig.additionalFilters) {
+                defaultConfig.storeConfig.filters = defaultConfig.storeConfig.filters.concat(config.storeConfig.additionalFilters);
+            }
+        }
+
+        this.callParent([Ext.Object.merge(defaultConfig, config)]);
+    },
+
+    initComponent: function() {
+        this.callParent();
+
+        Deft.Promise.all([this._loadStore()]).then({
+            success: function (results) {
+                this.on('change', this._onValueChange, this);
+                this.onReady({ preferencesLoaded: true, record: this.getRecord() });
+            },
+            scope: this
+        });
+    },
+
+    onReady: function (options) {
+        options = options || {};
+
+        // Only call the base onReady (which fires the 'ready' event, when both the store and preferences have loaded
+        if (options.preferencesLoaded) {
+            this.fireEvent('select', options.record);
+            this.callParent(arguments);
+        }
+    },
+
+    getSelectedType: function () {
+        return this.getTypeFromRef(this.getValue());
+    },
+
+    getTypeFromRef: function (typeRef) {
+        return this.getStore().findRecord('_ref', typeRef);
+    },
+
+    getTypeWithOrdinal: function(ordinal) {
+        return this.getStore().findRecord("Ordinal", ordinal);
+    },
+
+    getAllTypeNames: function () {
+        return _.map(this.getStore().getRecords(), function (type) { return type.get('TypePath'); });
+    },
+
+    _onValueChange: function(field, newValue) {
+        this.savePreference(newValue);
+    },
+
+    _loadStore: function () {
+        var deferred = new Deft.Deferred();
+
+        this.store.load({
+            callback: function (records, operation, success) {
+                if (success) {
+                    deferred.resolve();
+                } else {
+                    deferred.reject();
+                }
+            },
+            scope: this
+        });
+
+        return deferred.promise;
+    },
+
+    getPreference: function() {
+        var deferred = new Deft.Deferred();
+
+        Rally.data.PreferenceManager.load(Ext.apply(this._getPreferenceConfig(), {
+            success: function(prefs) {
+                deferred.resolve(prefs[this._getPreferenceName()]);
+            },
+            scope: this
+        }));
+
+        return deferred.promise;
+    },
+
+    savePreference: function(value) {
+        var settings = {};
+        settings[this._getPreferenceName()] = value;
+
+        Rally.data.PreferenceManager.update(Ext.apply(this._getPreferenceConfig(), {
+            settings: settings
+        }));
+    },
+
+    _getPreferenceConfig: function () {
+        var config = {
+            filterByUser: true,
+            filterByName: this._getPreferenceName()
+        };
+
+        if (this.context.get && this.context.get('appID')) {
+            config.appID = this.context.get('appID');
+        }
+
+        return config;
+    },
+
+    _getPreferenceName: function() {
+        return this.preferenceName + '-' + this.context.getWorkspace().ObjectID;
+    },
+
+    _isPrefValueInStore: function (pref) {
+        return this.store.findRecord(this.valueField, pref);
+    }
+});
+
+                Ext.define('RichTextEditorSettingsField', {
+    alias: 'widget.richtexteditorsettingsfield',
+    extend: 'Rally.ui.richtext.RichTextEditor',
+
+    constructPlugins: function() {
+        this.plugins = _.reject([this.plugins, 'rallyrichtexttemplates']); //we don't want the templates plugin
+        return this.callParent(arguments);
+    },
+    
+    _createResizer: function(){}, //This is an override so that the resizer handle which is hardcoded in the component doesn't hide the last line of the editor.
+
+    //This function is an override so that the readyEvent
+    //is consistently fired async.  Otherwise we get weird
+    //settings panel missing buttons/sizing issues
+    _drawEditor: function () {
+        var editorLoadPromise = this.createClosureEditor();
+        this._createResizer();
+
+        editorLoadPromise.always(function () {
+            this.initialLoadFinished = true;
+            this._lastValue = this.getValue();
+
+            if (this.getGrowToFitContent()) {
+                var images = Ext.get(this.closureEditor.field).select('img');
+                if (images.elements.length > 0) {
+                    Rally.util.Ui.executeCallbackWhenImagesLoaded(images, this._growToFitContent, this);
+                }
+                else {
+                    this._growToFitContent();
+                }
+            }
+
+            this._ieClosureFocusWorkaround();
+            this.fireEvent('load', this);
+
+            //This is the only added line
+            Ext.defer(function() { this.fireEvent('afterload', this); }, 1, this);
+        }, this);
+    }
+});
+                Ext.define('Rally.technicalservices.querycounter.Settings', {
+    singleton: true,
+
+    getFields: function(config) {
+
+        var items = [];
+
+        items.push({
+          name:'countVariables',
+          fieldLabel: null,
+          labelAlign: 'top',
+          xtype:'countvariablesettings',
+          width: config.width * 0.9 || 600,
+          margin: 10
+        });
+
+        items.push({
+            xtype:'container',
+            margin: '10 70 0 60',
+            html:'<div class="variable-label">Display Text</div><span style="color:#999999;">Enter the text to display in the App.  Use the format of <b>{&lt;Variable Name&gt;}</b> to place the results of the count queries defined above.</span>'
+        });
+
+        items.push({
+            name:'html',
+            flex: 1,
+            xtype:'richtexteditorsettingsfield',
+            margin: '10 70 0 60',
+            fieldLabel: 'Informational Text',
+            resizeable: false,
+            
+            //this is important for sizing/layout
+            //see the RichTextEditorFix for how/why this is fired.
+            readyEvent: 'afterload'
+        });
+
+        return items;
+    }
+});
+
+                Ext.define("TSQueryCounter", {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    defaults: { margin: 10 },
+    items: [
+        {xtype:'container',itemId:'display_box',tpl:'<tpl>{displayText}</tpl>'}
+    ],
+
+    config: {
+        defaultSettings: {
+            countVariables: [{
+              artifactType: 'Defect',
+              query: '( ObjectID > 0 )',
+              id: 'defectCount'
+            },{
+              artifactType: 'HierarchicalRequirement',
+              query: '( ObjectID > 0 )',
+              id: 'storyCount'
+            }],
+            html: 'Defects: {defectCount} and Stories: {storyCount}<br/><br/><em>Use the gear to make App Settings...</em>'
+        }
+    },
+
+    launch: function() {
+        this._validateSettings();
+        this._reloadModel();
+    },
+    _validateSettings: function(){
+       var cv = this._getCountVariables();
+       var html = this.getSetting('html');
+       this.logger.log('setting ', this.getSettings());
+       var errors = [];
+       Ext.Array.each(cv, function(c){
+          var variableName = Ext.String.format("{{0}}",c.id);
+          var re = new RegExp(variableName);
+
+          if (!re.exec(html)){
+              errors.push('Variable Name ' + variableName + ' not used.' );
+          }
+
+       });
+       if (errors.length > 0){
+          Rally.ui.notify.Notifier.showError({message: errors.join('<br/>'), allowHTML: true});
+       }
+    },
+    onTimeboxScopeChange: function(timebox){
+        this.logger.log('onTimeboxScopeChange', timebox.getQueryFilter().toString());
+        this._runApp(timebox);
+    },
+    _timeboxScopeIsValidForArtifactType: function(timeboxScope, artifactType){
+        if (timeboxScope){
+            var model = this.models[artifactType];
+            this.logger.log('_timeboxScopeIsValidForArtifactType',timeboxScope.getType(), model, model.getField('Milestones'), model.getField("Iteration"), model.getField("Release"), timeboxScope.getQueryFilter().toString());
+            var field = "Release";
+            switch(timeboxScope.getType()){
+               case 'iteration':
+                  field = "Iteration";
+                  break;
+              case 'milestone':
+                field = "Milestones";
+                break;
+            }
+
+            if (model.getField(field)){
+                this.logger.log('TimeboxScope', timeboxScope.getType(), 'is valid for', artifactType);
+                return true;
+            }
+            this.logger.log('TimeboxScope', timeboxScope.getType(), 'NOT valid for', artifactType);
+
+            return false;
+        }
+        this.logger.log('No Timebox Scope');
+        return true;
+    },
+    _getCountVariables: function(){
+        var cv = this.getSetting('countVariables');
+        if (Ext.isString(cv)){
+            cv = JSON.parse(cv);
+        }
+        return cv;
+    },
+    _getModelNames: function(){
+        var countVariables = this._getCountVariables();
+        this.logger.log('countVariables ', countVariables);
+        var modelNames = Ext.Array.map(countVariables, function(v){
+           return v.artifactType;
+        });
+        return _.uniq(modelNames);
+    },
+    _reloadModel: function(){
+       if (Ext.isEmpty(this._getModelNames())){
+          this._runApp(this.getContext().getTimeboxScope());
+          return;
+       }
+        //Load the model so that we can test if it is valid for the timebox scope
+        Rally.data.ModelFactory.getModels({
+            types: this._getModelNames(),
+            scope: this,
+            success: function(models) {
+                this.logger.log('models ', models);
+                this.models = models;
+                this._runApp(this.getContext().getTimeboxScope());
+            }
+        });
+    },
+    _runApp: function(timeboxScope){
+      var me = this;
+      var countVariables = this._getCountVariables(),
+          promises = [];
+
+      this.logger.log('_runApp', countVariables);
+
+      Ext.Array.each(countVariables, function(cv){
+          var artifactType = cv.artifactType,
+            query = cv.query,
+            id = cv.id;
+
+            var filters = null;
+            if (timeboxScope && this._timeboxScopeIsValidForArtifactType(timeboxScope, artifactType)){
+                filters = timeboxScope.getQueryFilter();
+                this.logger.log('Using Timebox Scope >>', filters.toString());
+            }
+
+            if ( !Ext.isEmpty(query) ) {
+                if (filters){
+                    filters = filters.and(Rally.data.wsapi.Filter.fromQueryString(query));
+                } else {
+                    filters = Rally.data.wsapi.Filter.fromQueryString(query);
+                }
+            }
+
+            promises.push(this._loadRecordCount(artifactType, filters || [], id));
+
+      }, this);
+
+      if (promises.length > 0){
+         this.setLoading("Counting...");
+
+         Deft.Promise.all(promises).then({
+            success: this._updateDisplay,
+            failure: this._showErrorNotification,
+            scope: this
+         }).always(function(){
+           this.setLoading(false);
+         },this);
+      } else {
+
+         this._updateDisplay();
+      }
+    },
+    _showErrorNotification: function(msg){
+       this.logger.log('_showErrorNotification', msg);
+       Rally.ui.notify.Notifier.showError({message: msg});
+    },
+    _loadRecordCount: function(model, filters, id){
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        this.logger.log("Starting load: model>>",model, 'filters>>', filters.toString());
+
+        Ext.create('Rally.data.wsapi.Store', {
+            model: model,
+            filters: filters,
+            limit: 1,
+            pageSize: 1
+        }).load({
+            callback : function(records, operation, successful) {
+                var result = {};
+                if (successful){
+                    me.logger.log('result:', operation);
+                    result[id] = operation.resultSet.totalRecords || 0;
+                    deferred.resolve(result);
+                } else {
+                    me.logger.log("Failed: ", operation);
+                    result[id] = '<span class="error-counter">#ERROR: ' + operation.error.errors.join('. ') + '</span>';
+                    deferred.resolve(result);
+                    //deferred.reject("Couldn't Load: " + operation.error.errors.join('. '));
+                }
+            }
+        });
+        return deferred.promise;
+    },
+
+    _updateDisplay: function(values){
+
+        if (!values){ values = []; }
+
+        values = _.reduce(values, function(obj, v){
+           obj = _.extend(obj, v);
+           return obj;
+        },{});
+
+        this.logger.log('_updateDisplay',values);
+
+        var html = this.getSetting('html'),
+            tpl = new Ext.XTemplate(html);
+
+        this.removeAll();
+        var view = this.add({
+           xtype:'container',
+           tpl: tpl,
+           cls: 'default-counter'
+        });
+        view.update(values);
+        this._setLinkTargets(view);
+    },
+
+    _setLinkTargets: function(cmp) {
+        _.each(Ext.dom.Query.select('a', cmp.getEl().dom), function(a) {
+            a.target = '_blank';
+        });
+    },
+
+    isExternal: function(){
+        return typeof(this.getAppId()) == 'undefined';
+    },
+
+    getSettingsFields: function() {
+        return Rally.technicalservices.querycounter.Settings.getFields({width: this.getWidth()});
+    },
+
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        this.logger.log('onSettingsUpdate',settings);
+//        Ext.apply(this, settings);
+        this._runApp();
+    }
+});
+
+
+            Rally.launchApp('TSQueryCounter', {
+                name:"TS Query Counter",
+                parentRepos:"",
+                version:"1.0.2"
+            });
+
+        });
+    </script>
+
+
+
+    <style type="text/css">
+        .tsinfolink {
+  position: absolute;
+  right: 0px;
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  text-align: center;
+  color: white;
+  background: #C0C0C0;
+  border-style: solid;
+  border-width: 1px;
+  margin-top: 25px;
+  margin-right: 5px;
+  cursor: pointer;
+}
+.error-counter {
+  color: red;
+}
+.default-counter {
+  font-family: ProximaNova, Helvetica, Arial;
+  font-size: 14px;
+}
+.variable-label {
+  font-family: ProximaNovaSemiBold, Helvetica, Arial;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.variable-button {
+  border-bottom-left-radius: 2px;
+  border-bottom-right-radius: 2px;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+  border-bottom-style: none;
+  border-left-style: none;
+  border-right-style: none;
+  border-top-style: none;
+  font-size: 16px;
+  padding-top: 3px;
+  width: 16px;
+  height: 33px;
+  line-height: 16px;
+  left: 21px;
+  background-clip: border-box;
+  background-color: #e6e6e6;
+  border-color: #e6e6e6;
+  color: #00a9e0;
+}
+.variable-button-disabled {
+  color: #d6d6d6;
+}
+
+    </style>
+</head>
+<body>
+</body>
+</html>
