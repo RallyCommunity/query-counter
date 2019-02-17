@@ -183,7 +183,7 @@ Ext.define("TSQueryCounter", {
 
     _updateDisplay: function(values){
 
-        if (!values){ values = []; };
+        if (!values){ values = []; }
 
         values = _.reduce(values, function(obj, v){
            obj = _.extend(obj, v);
@@ -202,6 +202,13 @@ Ext.define("TSQueryCounter", {
            cls: 'default-counter'
         });
         view.update(values);
+        this._setLinkTargets(view);
+    },
+
+    _setLinkTargets: function(cmp) {
+        _.each(Ext.dom.Query.select('a', cmp.getEl().dom), function(a) {
+            a.target = '_blank';
+        });
     },
 
     isExternal: function(){

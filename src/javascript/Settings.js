@@ -10,7 +10,7 @@ Ext.define('Rally.technicalservices.querycounter.Settings', {
           fieldLabel: null,
           labelAlign: 'top',
           xtype:'countvariablesettings',
-          width: config.width * .90 || 600,
+          width: config.width * 0.9 || 600,
           margin: 10
         });
 
@@ -23,12 +23,14 @@ Ext.define('Rally.technicalservices.querycounter.Settings', {
         items.push({
             name:'html',
             flex: 1,
-            xtype:'rallyrichtexteditor',
+            xtype:'richtexteditorsettingsfield',
             margin: '10 70 0 60',
             fieldLabel: 'Informational Text',
-            //height: 200,
-            _createResizer: function(){}, //This is an override so that the resizer handle which is hardcoded in the component doesn't hide the last line of the editor.
-            resizeable: false
+            resizeable: false,
+            
+            //this is important for sizing/layout
+            //see the RichTextEditorFix for how/why this is fired.
+            readyEvent: 'afterload'
         });
 
         return items;
